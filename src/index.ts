@@ -29,16 +29,16 @@ function isAllowedOrigin(origin?: string | null) {
 // Fijar cabeceras CORS para todas las respuestas y responder preflight (eco de headers solicitados)
 app.use((req, res, next) => {
 	const origin = req.headers.origin as string | undefined
-	if (isAllowedOrigin(origin)) {
-		const allow = origin ?? ALLOWED_ORIGINS[0]
-		res.header('Access-Control-Allow-Origin', allow)
-		res.header('Vary', 'Origin')
-		res.header('Access-Control-Allow-Credentials', 'true')
-		const reqHeaders = req.header('Access-Control-Request-Headers') || 'Content-Type, Authorization'
-		const reqMethod = req.header('Access-Control-Request-Method') || 'GET,POST,PATCH,DELETE,OPTIONS'
-		res.header('Access-Control-Allow-Headers', reqHeaders)
-		res.header('Access-Control-Allow-Methods', reqMethod)
-	}
+	const allow = origin ?? ALLOWED_ORIGINS[0] ?? '*'
+	res.header('Access-Control-Allow-Origin', allow)
+	res.header('Vary', 'Origin')
+	// Usamos tokens Bearer en headers; no dependemos de cookies, así que credenciales no son necesarias
+	// Si necesitas cookies, cambia a 'true' y limita orígenes
+	res.header('Access-Control-Allow-Credentials', 'false')
+	const reqHeaders = req.header('Access-Control-Request-Headers') || 'Content-Type, Authorization'
+	const reqMethod = req.header('Access-Control-Request-Method') || 'GET,POST,PATCH,DELETE,OPTIONS'
+	res.header('Access-Control-Allow-Headers', reqHeaders)
+	res.header('Access-Control-Allow-Methods', reqMethod)
 	if (req.method === 'OPTIONS') return res.sendStatus(204)
 	next()
 })
@@ -80,13 +80,13 @@ function auth(req: Request, res: Response, next: Function) {
 const clients = new Set<Response>()
 app.get('/events', (req, res) => {
 	const reqOrigin = req.headers.origin as string | undefined
-	const allowOrigin = reqOrigin && ALLOWED_ORIGINS.includes(reqOrigin) ? reqOrigin : ALLOWED_ORIGINS[0]
+	const allowOrigin = reqOrigin || ALLOWED_ORIGINS[0] || '*'
 	res.set({
 		'Content-Type': 'text/event-stream',
 		'Cache-Control': 'no-cache',
 		Connection: 'keep-alive',
 		'Access-Control-Allow-Origin': allowOrigin,
-		'Access-Control-Allow-Credentials': 'true'
+		'Access-Control-Allow-Credentials': 'false'
 	})
 	res.flushHeaders()
 	res.write(`event: ping\ndata: "connected"\n\n`)
