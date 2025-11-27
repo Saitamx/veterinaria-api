@@ -184,7 +184,7 @@ app.post("/auth/login", async (req, res) => {
 // ------------------------------
 app.get("/admin/users", auth, requireRole([Role.ADMIN]), async (_req, res) => {
   const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true, phone: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, phone: true, createdAt: true, active: true },
     orderBy: { createdAt: "desc" },
   });
   return res.json(users);
@@ -208,6 +208,14 @@ app.post("/admin/users", auth, requireRole([Role.ADMIN]), async (req, res) => {
     data: { name: body.data.name, email: body.data.email, passwordHash, role: body.data.role, phone: body.data.phone },
   });
   return res.status(201).json(created);
+});
+
+app.patch("/admin/users/:id/active", auth, requireRole([Role.ADMIN]), async (req, res) => {
+  const params = z.object({ id: z.string() }).safeParse(req.params);
+  const body = z.object({ active: z.boolean() }).safeParse(req.body);
+  if (!params.success || !body.success) return res.status(400).json({ error: "Datos inválidos" });
+  const updated = await prisma.user.update({ where: { id: params.data.id }, data: { active: body.data.active } });
+  return res.json({ id: updated.id, active: updated.active });
 });
 
 // ------------------------------
