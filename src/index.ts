@@ -14,6 +14,15 @@ const app = express()
 app.use(express.json())
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,https://veterinaria-front-bay.vercel.app').split(',').map(s => s.trim())
+function setCorsHeaders(res: Response, origin?: string) {
+	const allow = origin ?? ALLOWED_ORIGINS[0] ?? '*'
+	res.header('Access-Control-Allow-Origin', allow)
+	res.header('Vary', 'Origin')
+	res.header('Access-Control-Allow-Credentials', 'false')
+	res.header('Access-Control-Allow-Headers', res.req.header('Access-Control-Request-Headers') || 'Content-Type, Authorization')
+	res.header('Access-Control-Allow-Methods', res.req.header('Access-Control-Request-Method') || 'GET,POST,PATCH,DELETE,OPTIONS')
+	res.header('Access-Control-Max-Age', '86400')
+}
 function isAllowedOrigin(origin?: string | null) {
 	if (!origin) return true
 	if (ALLOWED_ORIGINS.includes(origin)) return true
@@ -29,17 +38,8 @@ function isAllowedOrigin(origin?: string | null) {
 // Fijar cabeceras CORS para todas las respuestas y responder preflight (eco de headers solicitados)
 app.use((req, res, next) => {
 	const origin = req.headers.origin as string | undefined
-	const allow = origin ?? ALLOWED_ORIGINS[0] ?? '*'
-	res.header('Access-Control-Allow-Origin', allow)
-	res.header('Vary', 'Origin')
-	// Usamos tokens Bearer en headers; no dependemos de cookies, así que credenciales no son necesarias
-	// Si necesitas cookies, cambia a 'true' y limita orígenes
-	res.header('Access-Control-Allow-Credentials', 'false')
-	const reqHeaders = req.header('Access-Control-Request-Headers') || 'Content-Type, Authorization'
-	const reqMethod = req.header('Access-Control-Request-Method') || 'GET,POST,PATCH,DELETE,OPTIONS'
-	res.header('Access-Control-Allow-Headers', reqHeaders)
-	res.header('Access-Control-Allow-Methods', reqMethod)
-	if (req.method === 'OPTIONS') return res.sendStatus(204)
+	setCorsHeaders(res, origin)
+	if (req.method === 'OPTIONS') return res.status(200).end()
 	next()
 })
 // CORS genérico (dejamos el middleware anterior como autoridad de cabeceras)
