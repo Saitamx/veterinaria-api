@@ -12,7 +12,20 @@ import { Request, Response } from 'express'
 const prisma = new PrismaClient()
 const app = express()
 app.use(express.json())
-app.use(cors({ origin: true, credentials: true }))
+
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,https://veterinaria-front-bay.vercel.app').split(',').map(s => s.trim())
+const corsOptions: cors.CorsOptions = {
+	origin(origin, callback) {
+		if (!origin) return callback(null, true)
+		if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true)
+		return callback(new Error('Not allowed by CORS'))
+	},
+	credentials: true,
+	allowedHeaders: ['Content-Type', 'Authorization'],
+	methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS']
+}
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
 app.use(helmet())
 
 const PORT = parseInt(process.env.PORT || '4000', 10)
@@ -39,10 +52,14 @@ function auth(req: Request, res: Response, next: Function) {
 // SSE event stream
 const clients = new Set<Response>()
 app.get('/events', (req, res) => {
+	const reqOrigin = req.headers.origin as string | undefined
+	const allowOrigin = reqOrigin && ALLOWED_ORIGINS.includes(reqOrigin) ? reqOrigin : ALLOWED_ORIGINS[0]
 	res.set({
 		'Content-Type': 'text/event-stream',
 		'Cache-Control': 'no-cache',
-		Connection: 'keep-alive'
+		Connection: 'keep-alive',
+		'Access-Control-Allow-Origin': allowOrigin,
+		'Access-Control-Allow-Credentials': 'true'
 	})
 	res.flushHeaders()
 	res.write(`event: ping\ndata: "connected"\n\n`)
