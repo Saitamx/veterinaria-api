@@ -345,6 +345,10 @@ app.post("/appointments", auth, async (req, res) => {
   if (!body.success)
     return res.status(400).json({ error: body.error.flatten() });
 
+  if (dayjs(body.data.dateISO).isBefore(dayjs())) {
+    return res.status(400).json({ error: "No se puede agendar en el pasado" });
+  }
+
   const apt = await prisma.appointment.create({
     data: {
       userId: me.id,
@@ -368,6 +372,9 @@ app.post("/manage/appointments", auth, requireRole([Role.ADMIN, Role.RECEPCIONIS
     })
     .safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: zodErrMsg(body.error) });
+  if (dayjs(body.data.dateISO).isBefore(dayjs())) {
+    return res.status(400).json({ error: "No se puede agendar en el pasado" });
+  }
   const user = await prisma.user.findUnique({ where: { email: body.data.userEmail } });
   if (!user) return res.status(404).json({ error: "Cliente no encontrado" });
   const apt = await prisma.appointment.create({
@@ -386,6 +393,10 @@ app.patch("/appointments/:id/reschedule", auth, async (req, res) => {
 
   if (!params.success || !body.success)
     return res.status(400).json({ error: "Invalid data" });
+
+  if (dayjs(body.data.dateISO).isBefore(dayjs())) {
+    return res.status(400).json({ error: "No se puede reprogramar al pasado" });
+    }
 
   const apt = await prisma.appointment.findUnique({
     where: { id: params.data.id },
