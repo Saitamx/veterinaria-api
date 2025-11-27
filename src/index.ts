@@ -42,17 +42,8 @@ app.use((req, res, next) => {
 	if (req.method === 'OPTIONS') return res.sendStatus(204)
 	next()
 })
-const corsOptions: cors.CorsOptions = {
-	origin(origin, callback) {
-		if (isAllowedOrigin(origin)) return callback(null, true)
-		return callback(new Error('Not allowed by CORS'))
-	},
-	credentials: true,
-	allowedHeaders: ['Content-Type', 'Authorization'],
-	methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS']
-}
-app.use(cors(corsOptions))
-app.options('*', cors(corsOptions))
+// CORS genérico (dejamos el middleware anterior como autoridad de cabeceras)
+app.use(cors())
 app.use(helmet())
 
 const PORT = parseInt(process.env.PORT || '4000', 10)
