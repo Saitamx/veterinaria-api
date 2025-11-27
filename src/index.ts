@@ -296,7 +296,7 @@ app.get("/slots", async (req, res) => {
     .millisecond(0);
 
   const slots: string[] = [];
-  for (let h = 9; h <= 17; h++) slots.push(base.hour(h).toISOString());
+  for (let h = 9; h <= 18; h++) slots.push(base.hour(h).toISOString());
 
   const booked = await prisma.appointment.findMany({
     where: {
