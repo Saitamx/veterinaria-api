@@ -47,6 +47,22 @@ app.options("*", cors());
 app.use(helmet());
 app.use(express.json());
 
+// Extra defensive CORS headers (ensure proxies/edges always see them)
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string | undefined;
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".vercel.app"))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  const requested = (req.headers["access-control-request-headers"] as string) || "Content-Type, Authorization";
+  res.setHeader("Access-Control-Allow-Headers", requested);
+  if (req.method === "OPTIONS") return res.status(200).end();
+  next();
+});
+
 const PORT = parseInt(process.env.PORT || "4000", 10);
 const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
 
