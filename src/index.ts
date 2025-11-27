@@ -26,6 +26,20 @@ function isAllowedOrigin(origin?: string | null) {
 	}
 	return false
 }
+// Fijar cabeceras CORS para todas las respuestas y responder preflight
+app.use((req, res, next) => {
+	const origin = req.headers.origin as string | undefined
+	if (isAllowedOrigin(origin)) {
+		const allow = origin ?? ALLOWED_ORIGINS[0]
+		res.header('Access-Control-Allow-Origin', allow)
+		res.header('Vary', 'Origin')
+		res.header('Access-Control-Allow-Credentials', 'true')
+		res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+		res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
+	}
+	if (req.method === 'OPTIONS') return res.sendStatus(204)
+	next()
+})
 const corsOptions: cors.CorsOptions = {
 	origin(origin, callback) {
 		if (isAllowedOrigin(origin)) return callback(null, true)
