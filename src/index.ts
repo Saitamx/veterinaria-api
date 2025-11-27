@@ -50,6 +50,10 @@ app.use(express.json());
 const PORT = parseInt(process.env.PORT || "4000", 10);
 const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
 
+function zodErrMsg(e: z.ZodError) {
+  return e.issues.map((i) => i.message).join("; ");
+}
+
 type JwtUser = { id: string; role: Role };
 
 // JWT UTILS
@@ -59,7 +63,7 @@ function signToken(u: JwtUser) {
 
 function auth(req: Request, res: Response, next: Function) {
   const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: "No token" });
+  if (!header) return res.status(401).json({ error: "No hay token" });
 
   const token = header.replace("Bearer ", "");
 
@@ -68,8 +72,17 @@ function auth(req: Request, res: Response, next: Function) {
     (req as any).user = payload;
     next();
   } catch {
-    return res.status(401).json({ error: "Invalid token" });
+    return res.status(401).json({ error: "Token inválido" });
   }
+}
+
+function requireRole(roles: Role[]) {
+  return (req: Request, res: Response, next: Function) => {
+    const me = (req as any).user as JwtUser | undefined;
+    if (!me) return res.status(401).json({ error: "No autorizado" });
+    if (!roles.includes(me.role)) return res.status(403).json({ error: "Prohibido" });
+    next();
+  };
 }
 
 // ------------------------------
@@ -108,21 +121,21 @@ function broadcast(evt: string, data: any) {
 app.post("/auth/register", async (req, res) => {
   const body = z
     .object({
-      name: z.string().min(2),
-      email: z.string().email(),
-      password: z.string().min(6),
-      phone: z.string().optional(),
+      name: z.string({ required_error: "Nombre es requerido" }).min(2, "El nombre debe tener al menos 2 caracteres"),
+      email: z.string({ required_error: "Correo es requerido" }).email("Correo electrónico inválido"),
+      password: z.string({ required_error: "Contraseña es requerida" }).min(6, "La contraseña debe tener al menos 6 caracteres"),
+      phone: z.string().min(5, "Teléfono inválido").optional(),
     })
     .safeParse(req.body);
 
   if (!body.success)
-    return res.status(400).json({ error: body.error.flatten() });
+    return res.status(400).json({ error: zodErrMsg(body.error) });
 
   const exists = await prisma.user.findUnique({
     where: { email: body.data.email },
   });
 
-  if (exists) return res.status(409).json({ error: "Email in use" });
+  if (exists) return res.status(409).json({ error: "Correo ya registrado" });
 
   const passwordHash = await bcrypt.hash(body.data.password, 10);
 
@@ -143,24 +156,58 @@ app.post("/auth/register", async (req, res) => {
 
 app.post("/auth/login", async (req, res) => {
   const body = z
-    .object({ email: z.string().email(), password: z.string().min(6) })
+    .object({
+      email: z.string({ required_error: "Correo es requerido" }).email("Correo electrónico inválido"),
+      password: z.string({ required_error: "Contraseña es requerida" }).min(6, "La contraseña debe tener al menos 6 caracteres"),
+    })
     .safeParse(req.body);
 
   if (!body.success)
-    return res.status(400).json({ error: body.error.flatten() });
+    return res.status(400).json({ error: zodErrMsg(body.error) });
 
   const user = await prisma.user.findUnique({
     where: { email: body.data.email },
   });
 
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+  if (!user) return res.status(401).json({ error: "Credenciales inválidas" });
 
   const ok = await bcrypt.compare(body.data.password, user.passwordHash);
-  if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+  if (!ok) return res.status(401).json({ error: "Credenciales inválidas" });
 
   const token = signToken({ id: user.id, role: user.role });
 
   return res.json({ token, user });
+});
+
+// ------------------------------
+// ADMIN: USERS
+// ------------------------------
+app.get("/admin/users", auth, requireRole([Role.ADMIN]), async (_req, res) => {
+  const users = await prisma.user.findMany({
+    select: { id: true, name: true, email: true, role: true, phone: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return res.json(users);
+});
+
+app.post("/admin/users", auth, requireRole([Role.ADMIN]), async (req, res) => {
+  const body = z
+    .object({
+      name: z.string({ required_error: "Nombre es requerido" }).min(2, "El nombre debe tener al menos 2 caracteres"),
+      email: z.string({ required_error: "Correo es requerido" }).email("Correo electrónico inválido"),
+      password: z.string({ required_error: "Contraseña es requerida" }).min(6, "La contraseña debe tener al menos 6 caracteres"),
+      role: z.nativeEnum(Role, { errorMap: () => ({ message: "Rol inválido" }) }),
+      phone: z.string().optional(),
+    })
+    .safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: zodErrMsg(body.error) });
+  const exists = await prisma.user.findUnique({ where: { email: body.data.email } });
+  if (exists) return res.status(409).json({ error: "Correo ya registrado" });
+  const passwordHash = await bcrypt.hash(body.data.password, 10);
+  const created = await prisma.user.create({
+    data: { name: body.data.name, email: body.data.email, passwordHash, role: body.data.role, phone: body.data.phone },
+  });
+  return res.status(201).json(created);
 });
 
 // ------------------------------
@@ -251,7 +298,10 @@ app.get("/appointments", auth, async (req, res) => {
   const list = await prisma.appointment.findMany({
     where: me.role === Role.CLIENTE ? { userId: me.id } : undefined,
     orderBy: { dateTime: "asc" },
-    include: { vet: true },
+    include: {
+      vet: true,
+      user: { select: { id: true, name: true, email: true, phone: true } },
+    },
   });
 
   return res.json(list);
@@ -280,6 +330,25 @@ app.post("/appointments", auth, async (req, res) => {
     },
   });
 
+  return res.status(201).json(apt);
+});
+
+// Reception/Admin create appointment for any user by email
+app.post("/manage/appointments", auth, requireRole([Role.ADMIN, Role.RECEPCIONISTA]), async (req, res) => {
+  const body = z
+    .object({
+      userEmail: z.string({ required_error: "Correo del cliente es requerido" }).email("Correo electrónico inválido"),
+      vetId: z.string({ required_error: "Veterinario requerido" }),
+      dateISO: z.string({ required_error: "Fecha/hora requerida" }),
+      reason: z.string().min(2, "Motivo inválido"),
+    })
+    .safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: zodErrMsg(body.error) });
+  const user = await prisma.user.findUnique({ where: { email: body.data.userEmail } });
+  if (!user) return res.status(404).json({ error: "Cliente no encontrado" });
+  const apt = await prisma.appointment.create({
+    data: { userId: user.id, vetId: body.data.vetId, reason: body.data.reason, dateTime: new Date(body.data.dateISO) },
+  });
   return res.status(201).json(apt);
 });
 
