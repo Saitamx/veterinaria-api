@@ -14,10 +14,21 @@ const app = express()
 app.use(express.json())
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,https://veterinaria-front-bay.vercel.app').split(',').map(s => s.trim())
+function isAllowedOrigin(origin?: string | null) {
+	if (!origin) return true
+	if (ALLOWED_ORIGINS.includes(origin)) return true
+	// Permite cualquier subdominio de vercel.app (puedes restringirlo en CORS_ORIGINS)
+	try {
+		const url = new URL(origin)
+		if (url.hostname.endsWith('.vercel.app')) return true
+	} catch {
+		// ignore parse error
+	}
+	return false
+}
 const corsOptions: cors.CorsOptions = {
 	origin(origin, callback) {
-		if (!origin) return callback(null, true)
-		if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true)
+		if (isAllowedOrigin(origin)) return callback(null, true)
 		return callback(new Error('Not allowed by CORS'))
 	},
 	credentials: true,
