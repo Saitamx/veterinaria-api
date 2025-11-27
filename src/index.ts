@@ -229,8 +229,10 @@ app.use((req, res) => {
 	return res.status(404).json({ error: 'Not Found' })
 })
 
-app.listen(PORT, async () => {
-	await ensureSeed()
+app.listen(PORT, () => {
+	ensureSeed().catch((err) => {
+		console.error('Seed error (non-blocking):', err)
+	})
 	console.log(`API listening on http://localhost:${PORT}`)
 })
 
