@@ -26,7 +26,7 @@ function isAllowedOrigin(origin?: string | null) {
 	}
 	return false
 }
-// Fijar cabeceras CORS para todas las respuestas y responder preflight
+// Fijar cabeceras CORS para todas las respuestas y responder preflight (eco de headers solicitados)
 app.use((req, res, next) => {
 	const origin = req.headers.origin as string | undefined
 	if (isAllowedOrigin(origin)) {
@@ -34,8 +34,10 @@ app.use((req, res, next) => {
 		res.header('Access-Control-Allow-Origin', allow)
 		res.header('Vary', 'Origin')
 		res.header('Access-Control-Allow-Credentials', 'true')
-		res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-		res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
+		const reqHeaders = req.header('Access-Control-Request-Headers') || 'Content-Type, Authorization'
+		const reqMethod = req.header('Access-Control-Request-Method') || 'GET,POST,PATCH,DELETE,OPTIONS'
+		res.header('Access-Control-Allow-Headers', reqHeaders)
+		res.header('Access-Control-Allow-Methods', reqMethod)
 	}
 	if (req.method === 'OPTIONS') return res.sendStatus(204)
 	next()
