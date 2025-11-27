@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -b",
-    "start": "sh -c \"(prisma migrate deploy || prisma db push --accept-data-loss || true) && (prisma generate || true) && node dist/index.js\"",
+    "start": "sh -c \"prisma migrate deploy; prisma db push --accept-data-loss || true; prisma generate || true; node dist/index.js\"",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
