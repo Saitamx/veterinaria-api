@@ -223,6 +223,12 @@ app.delete('/appointments/:id', auth, async (req, res) => {
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
+// 404 handler with CORS headers
+app.use((req, res) => {
+	setCorsHeaders(res, req.headers.origin as string | undefined)
+	return res.status(404).json({ error: 'Not Found' })
+})
+
 app.listen(PORT, async () => {
 	await ensureSeed()
 	console.log(`API listening on http://localhost:${PORT}`)
